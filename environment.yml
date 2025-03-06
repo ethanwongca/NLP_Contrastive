@@ -1,0 +1,34 @@
+# Adapted from: https://github.com/lingjzhu/clap-ipa/tree/main
+name: lightning-asr
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch=2.0.1
+  - torchaudio=2.0.2
+  - torchvision=0.15.2
+  - cudatoolkit=11.8  
+  - librosa=0.10.0
+  - scikit-learn=1.2.2  n
+  - sentencepiece=0.1.99
+  - tokenizers=0.13.3
+  - soundfile=0.12.1
+  - ninja=1.11.1
+  - lingpy=2.6.9
+  - ipatok=0.4.1
+  - torchmetrics=0.11.4
+  - pip=23.1.2
+  - pip:
+      - pytorch-lightning==2.0.5  
+      - datasets==2.13.1
+      - webdataset==0.2.48
+      - transformers==4.30.2
+      - jsonargparse[signatures]==4.23.0
+      - wandb==0.15.3
+      - torch==2.0.1  
+      - librosa==0.10.0  
+      - sentencepiece==0.1.99  
+      - tokenizers==0.13.3  
+      - ipatok==0.4.1  
