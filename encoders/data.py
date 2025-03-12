@@ -33,6 +33,8 @@ class DataCollatorWithPadding:
             "texts": tokenized_texts
         }
 
+    #Make an apply chat template here I think setup via the cfgs file
+
 class DataModule(LightningDataModule):
     def __init__(self, data_dir: str, cfg: Dict[str, Any]) -> None:
         super().__init__()
