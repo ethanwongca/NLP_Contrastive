@@ -1,8 +1,9 @@
 from typing import Any, Dict, List
 from lightning.pytorch.core import LightningDataModule
 from torch.utils.data import DataLoader
-from datasets import load_dataset
+import webdataset as wds
 from transformers import AutoTokenizer, AutoProcessor
+import os 
 
 class DataCollatorWithPadding:
     def __init__(self, processor: Any, tokenizer: Any, max_length: int = 128) -> None:
@@ -35,8 +36,8 @@ class DataCollatorWithPadding:
 class DataModule(LightningDataModule):
     def __init__(self, data_dir: str, cfg: Dict[str, Any]) -> None:
         super().__init__()
-        self.data_dir: str = data_dir
-        self.cfg: Dict[str, Any] = cfg
+        self.data_dir = data_dir
+        self.cfg = cfg
         
         # Load your processors from Hugging Face.
         self.tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
@@ -50,11 +51,14 @@ class DataModule(LightningDataModule):
 
     def setup(self, stage: str = None) -> None:
         if stage in ("fit", None):
-            self.train_dataset = load_dataset("webdataset", data_dir=self.data_dir, split="train", streaming=True)
+            train_path = os.path.join(self.data_dir, "train",  "*.tar")
+            self.train_dataset = wds.WebDataset(train_path).shuffle(1000)
         if stage in ("validate", None):
-            self.val_dataset = load_dataset("webdataset", data_dir=self.data_dir, split="val", streaming=True)
+            val_path = os.path.join(self.data_dir, "val",  "*.tar")
+            self.val_dataset = wds.WebDataset(val_path).shuffle(1000)
         if stage == "predict":
-            self.test_dataset = load_dataset("webdataset", data_dir=self.data_dir, split="test", streaming=True)
+            test_path = os.path.join(self.data_dir, "test",  "*.tar")
+            self.test_dataset = wds.WebDataset(test_path).shuffle(1000)
         
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
