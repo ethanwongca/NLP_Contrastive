@@ -36,12 +36,16 @@ class VideoTextExp(pl.LightningModule):
         self.text_encoder = encoders.initialize_text_encoder(self.hparams.text_encoder_cfg)
         
         self.loss = encoders.losses.ContrastiveSigmoid
+        
+        # t and b for the loss function, should be set in the yaml file?
+        self.t_prime = torch.tensor(math.log(10))
+        self.b = torch.tensor(-10.0)
+        
         self.hard_negatives = hard_negatives
         self.text = text 
         self.validation_step_outputs = []
         
         if tokenizer is not None:
-            # Subject to change
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         if processor is not None:
             self.processor = AutoProcessor.from_pretrained(processor)
@@ -81,39 +85,21 @@ class VideoTextExp(pl.LightningModule):
         return video_features
 
     def encode_text(self, text_input):
-        text_features = self.text_encoder(**text_input).pooler_output
+        text_features = self.text_encoder(**text_input)
         return text_features
 
     def training_step(self, batch, batch_idx):
-        if self.hard_negatives: # If the batch contains augmented hard negative pairs
-            video_input, text_input, hard_negatives = batch
-            
-            video_features, text_features = self.forward(video_input, text_input)
-            loss = self.loss(video_features, 
-                             text_features, 
-                             self.text_encoder.t_prime,
-                             self.text_encoder.b)
-            
-            negative_features = self.encode_video(hard_negatives) # We augment our negative samples from the video data, aren't we?
-            loss += self.loss(negative_features, 
-                             text_features, 
-                             self.text_encoder.t_prime,
-                             self.text_encoder.b)
-            
-            loss = loss/2
         
-        else:
-            video_input, text_input = batch
-            video_features, text_features = self.forward(video_input, text_input)
-            loss = self.loss(video_features, 
-                             text_features, 
-                             self.text_encoder.t_prime,
-                             self.text_encoder.b)
-            
+        video_input, text_input = batch
+        video_features, text_features = self.forward(video_input, text_input)
+        loss = self.loss(video_features, 
+                         text_features, 
+                         self.t_prime,
+                         self.b
+                        )
+    
         self.log("loss", loss, prog_bar=True)
-        self.log('t_prime',self.phone_encoder.t_prime)
-        self.log('b',self.phone_encoder.b)
-
+        
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -121,15 +107,16 @@ class VideoTextExp(pl.LightningModule):
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
                          text_features, 
-                         self.text_encoder.t_prime,
-                         self.text_encoder.b)
+                         self.t_prime,
+                         self.b
+                        )
         
         self.validation_step_outputs.append(loss)
 
 
     def validation_epoch_end(self, outputs):
         
-        if self.global_rank == 0 # What does this mean?
+        if self.global_rank == 0 
             avg_loss = torch.stack([x["val_loss"] for x on self.validation_step_outputs]).mean()
             self.log("val_loss", avg_loss, sync_dist = True)
 
