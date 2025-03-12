@@ -5,17 +5,23 @@ import webdataset as wds
 from transformers import AutoTokenizer, AutoProcessor
 import os 
 
+#Anything related to the utilities file
+from utils import vision_utils
+
+
 class DataCollatorWithPadding:
-    def __init__(self, processor: Any, tokenizer: Any, max_length: int = 128) -> None:
+    def __init__(self, processor: Any, tokenizer: Any, data_dir: str, max_length: int = 128) -> None:
         self.processor = processor
         self.tokenizer = tokenizer
+        self.data_dir = data_dir
         self.max_length = max_length
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Extract video and text data from every sample 
-        videos = [sample["mp4"] for sample in batch]
+        #NEED TO DOUBLE CHECK THE PROCESSORS HERE 
+        videos = [self.data_dir + sample["mp4"] for sample in batch]
         texts = [sample["txt"] for sample in batch]
-        
+
         # I'M OVERALL UNSURE ABOUT THIS PROCESSOR
         processed_videos = self.processor(videos, return_tensors="pt")
         
@@ -48,6 +54,7 @@ class DataModule(LightningDataModule):
         self.collator = DataCollatorWithPadding(
             processor=self.processor,
             tokenizer=self.tokenizer,
+            data_dir=self.data_dir,
             max_length=self.cfg["max_length"]
         )
 
@@ -97,3 +104,4 @@ if __name__ == "__main__":
     data_dir: str = "/path/to/your/tar_folder"
     data_module = DataModule(data_dir, cfg)
     data_module.setup("fit")
+
