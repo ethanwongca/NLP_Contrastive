@@ -79,8 +79,8 @@ class VideoTextExp(pl.LightningModule):
         
 
     def forward(self, video_input, text_input):
-        video_features = self.encode_video(x) 
-        text_features = self.text_encoder(x)
+        video_features = self.encode_video(video_input) 
+        text_features = self.text_encoder(text_input)
         return video_features, text_features
 
     def encode_video(self, video_input):
