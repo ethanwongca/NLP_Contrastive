@@ -12,7 +12,7 @@ from transformers.models.qwen2_5_vl.modular_qwen2_5_vl import Qwen2_5_VLVisionCo
 
 import math
 
-def MeanPooler(hidden_states, attention_mask):
+def MeanPooler(hidden_states, attention_mask = False):
     if attention_mask is not None:
         pooled_output = torch.sum(hidden_states*attention_mask.unsqueeze(-1), dim=1) / torch.sum(attention_mask, dim=-1).unsqueeze(-1)
     else:
@@ -53,10 +53,11 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
         
         print("VisionEncoder")
         print(config)
-        
-        self.encoder = Qwen2_5_VisionTransformerPretrainedModel(config)
-        self.projector = nn.Linear(config.out_hidden_size, config.proj_size)
-        self.pooler = MeanPooler()
+
+        vision_config = config.vision_config
+        self.encoder = Qwen2_5_VisionTransformerPretrainedModel(vision_config)
+        self.projector = nn.Linear(vision_config.out_hidden_size, vision_config.proj_size)
+        self.pooler = MeanPooler
         # Add a pooling layer
     
 
@@ -70,12 +71,12 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
         return hidden_states
 
 def initialize_vision_encoder(cfg):
-    config = Qwen2_5_VLVisionConfig()
+    config = AutoConfig.from_pretrained('Qwen/Qwen2.5-VL-3B-Instruct')
     for key, value in cfg.items():
-        setattr(config, key, value)
+        setattr(config.vision_config, key, value)
     
     
-    model = VisionEncoder(cfg)
+    model = VisionEncoder(config)
     return model
 
 if __name__ == "__main__":
