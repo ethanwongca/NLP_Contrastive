@@ -10,27 +10,28 @@ from utils import vision_utils
 
 
 class DataCollatorWithPadding:
-    def __init__(self, processor: Any, tokenizer: Any, data_dir: str, max_length: int = 128) -> None:
+    def __init__(self, processor: Any, tokenizer: Any, data_dir: str, stage:str, max_length: int = 128) -> None:
         self.processor = processor
         self.tokenizer = tokenizer
         self.data_dir = data_dir
+        self.stage = stage
         self.max_length = max_length
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Processing videos according to Qwen's Processor 
-        video_paths = [self.data_dir + sample["mp4"] for sample in batch]
+        # Expected data_dir is How2Sign/train/<some_video>.mp4
+        video_paths = [os.path.join(self.data_dir, self.stage, sample["mp4"]) for sample in batch]
 
-        # Vision Inputs 
+        # Configures videos into the vision utils formats 
         video_inputs = vision_utils.process_vision_info(video_paths)
 
         processed_videos = self.processor(
-            text=None,  # Only processing videos here.
+            images=None,  # Only processing videos here.
             videos=video_inputs,
-            padding=True,
             return_tensors="pt",
         )
 
-        # Process texts with Jina Toeknizer 
+        # Process texts with Jina Tokenizer 
         texts = [sample["txt"] for sample in batch]
         tokenized_texts = self.tokenizer(
             texts,
@@ -59,6 +60,7 @@ class DataModule(LightningDataModule):
             processor=self.processor,
             tokenizer=self.tokenizer,
             data_dir=self.data_dir,
+            stage=self.cfg["stage"],
             max_length=self.cfg["max_length"]
         )
 
@@ -101,7 +103,8 @@ if __name__ == "__main__":
     cfg: Dict[str, Any] = {
         "batch_size": 2,  # Start small for testing.
         "num_workers": 0,  # Easier debugging.
-        "max_length": 128
+        "max_length": 128,
+        "stage": "train"
     }
 
     data_dir: str = "/path/to/your/tar_folder"
