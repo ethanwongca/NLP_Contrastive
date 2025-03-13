@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 from lightning.pytorch.core import LightningDataModule
 from torch.utils.data import DataLoader
 import webdataset as wds
-from transformers import AutoTokenizer, AutoProcessor
+from transformers import AutoTokenizer, AutoImageProcessor
 import os 
 
 # Modified Qwen Processor Class
@@ -53,7 +53,7 @@ class DataModule(LightningDataModule):
         
         # Load processoors seperately 
         self.tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
-        self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+        self.processor = AutoImageProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
         
         self.collator = DataCollatorWithPadding(
             processor=self.processor,
