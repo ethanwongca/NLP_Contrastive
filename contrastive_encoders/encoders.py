@@ -1,4 +1,4 @@
-from transformers import AutoProcessor
+from transformers import AutoProcessor, AutoModel, AutoConfig
 import torch
 import torch.nn as nn
 from typing import Optional
@@ -8,6 +8,8 @@ from contrastive_encoders.Qwen2_5_vision_encoder import Qwen2_5_VisionTransforme
 from transformers import (Qwen2Tokenizer, 
                           Qwen2VLProcessor, 
                           Qwen2_5_VLPreTrainedModel)
+from transformers.models.qwen2_5_vl.modular_qwen2_5_vl import Qwen2_5_VLVisionConfig
+
 import math
 
 def MeanPooler(hidden_states, attention_mask):
@@ -23,7 +25,7 @@ class TextEncoder(nn.Module):
         super().__init__()
         self.config = config
         self.model = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", trust_remote_code=True)
-        self.projector = nn.Linear(config.truncate_dim, config.proj_size)
+        self.projector = nn.Linear(self.config.truncate_dim, self.config.proj_size)
         
         
     def forward(self, texts):
@@ -35,7 +37,12 @@ class TextEncoder(nn.Module):
         return projected_output
 
 def initialize_text_encoder(cfg):
-    model = TextEncoder(cfg)
+    config = AutoConfig.from_pretrained(cfg['model_name'])
+    for key, value in cfg.items():
+        setattr(config, key, value)
+    
+    
+    model = TextEncoder(config)
     return model
 
 
@@ -43,6 +50,9 @@ def initialize_text_encoder(cfg):
 class VisionEncoder(Qwen2_5_VLPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
+        
+        print("VisionEncoder")
+        print(config)
         
         self.encoder = Qwen2_5_VisionTransformerPretrainedModel(config)
         self.projector = nn.Linear(config.out_hidden_size, config.proj_size)
@@ -60,6 +70,11 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
         return hidden_states
 
 def initialize_vision_encoder(cfg):
+    config = Qwen2_5_VLVisionConfig()
+    for key, value in cfg.items():
+        setattr(config, key, value)
+    
+    
     model = VisionEncoder(cfg)
     return model
 
