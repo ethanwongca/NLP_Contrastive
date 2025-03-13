@@ -6,8 +6,8 @@ import lightning as pl
 import transformers
 from transformers import AutoTokenizer
 
-import encoders.encoders 
-import encoders.losses
+import contrastive_encoders.encoders as encoders
+import contrastive_encoders.losses as losses
 
 import bitsandbytes as bnb
 
@@ -17,7 +17,7 @@ class VideoTextExp(pl.LightningModule):
         self, 
         video_encoder_cfg,
         text_encoder_cfg,
-        optimizer,
+        #optimizer,
         sample_rate: int = 16000,
         initial_lr: float = 1e-4,
         weight_decay: float = 1e-4,
@@ -30,12 +30,15 @@ class VideoTextExp(pl.LightningModule):
         super().__init__()
 
         self.save_hyperparameters()
-        print(self.hparams)
         
-        self.video_encoder = encoders.initialize_video_encoder(self.hparams.video_encoder_cfg)
+        #print(self.hparams.text_encoder_cfg)
+        #print(self.hparams.video_encoder_cfg)
         self.text_encoder = encoders.initialize_text_encoder(self.hparams.text_encoder_cfg)
+        print("text_encoder initiated")
+        self.video_encoder = encoders.initialize_vision_encoder(self.hparams.video_encoder_cfg)
+        print("video_encoder initiated")
         
-        self.loss = encoders.losses.ContrastiveSigmoid
+        self.loss = losses.ContrastiveSigmoid
         
         # t and b for the loss function, should be set in the yaml file?
         self.t_prime = torch.tensor(math.log(10))
@@ -76,8 +79,8 @@ class VideoTextExp(pl.LightningModule):
         
 
     def forward(self, video_input, text_input):
-        video_features = self.encode_video(x) 
-        text_features = self.text_encoder(x)
+        video_features = self.encode_video(video_input) 
+        text_features = self.text_encoder(text_input)
         return video_features, text_features
 
     def encode_video(self, video_input):
@@ -116,8 +119,8 @@ class VideoTextExp(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         
-        if self.global_rank == 0 
-            avg_loss = torch.stack([x["val_loss"] for x on self.validation_step_outputs]).mean()
+        if self.global_rank == 0:
+            avg_loss = torch.stack([x["val_loss"] for x in self.validation_step_outputs]).mean()
             self.log("val_loss", avg_loss, sync_dist = True)
 
     
