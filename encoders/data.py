@@ -2,24 +2,36 @@ from typing import Any, Dict, List
 from lightning.pytorch.core import LightningDataModule
 from torch.utils.data import DataLoader
 import webdataset as wds
-from transformers import AutoTokenizer, AutoProcessor
+from transformers import AutoTokenizer, AutoImageProcessor
 import os 
 
+# Modified Qwen Processor Class
+from utils import vision_utils
+
+
 class DataCollatorWithPadding:
-    def __init__(self, processor: Any, tokenizer: Any, max_length: int = 128) -> None:
-        self.processor = processor
+    def __init__(self, vision_processor: Any, tokenizer: Any, data_dir: str, max_length: int = 128) -> None:
+        self.vision_processor = vision_processor
         self.tokenizer = tokenizer
+        self.data_dir = data_dir
         self.max_length = max_length
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
-        # Extract video and text data from every sample 
-        videos = [sample["mp4"] for sample in batch]
+        # Processing videos according to Qwen's Processor 
+        video_paths = [self.data_dir + sample["mp4"] for sample in batch]
+
+        # Vision Inputs 
+        video_inputs = vision_utils.process_vision_info(video_paths)
+
+        processed_videos = self.vision_processor(
+            text=None,  # Only processing videos here.
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        # Process texts with Jina Toeknizer 
         texts = [sample["txt"] for sample in batch]
-        
-        # I'M OVERALL UNSURE ABOUT THIS PROCESSOR
-        processed_videos = self.processor(videos, return_tensors="pt")
-        
-        #process texts 
         tokenized_texts = self.tokenizer(
             texts,
             padding=True,
@@ -33,21 +45,20 @@ class DataCollatorWithPadding:
             "texts": tokenized_texts
         }
 
-    #Make an apply chat template here I think setup via the cfgs file
-
 class DataModule(LightningDataModule):
     def __init__(self, data_dir: str, cfg: Dict[str, Any]) -> None:
         super().__init__()
         self.data_dir = data_dir
         self.cfg = cfg
         
-        # Load your processors from Hugging Face.
+        # Load processoors seperately 
         self.tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
-        self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+        self.vision_processor = AutoImageProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
         
         self.collator = DataCollatorWithPadding(
-            processor=self.processor,
+            processor=self.vision_processor,
             tokenizer=self.tokenizer,
+            data_dir=self.data_dir,
             max_length=self.cfg["max_length"]
         )
 
