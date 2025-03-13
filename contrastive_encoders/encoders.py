@@ -1,16 +1,14 @@
 from transformers import AutoProcessor
 import torch
 import torch.nn as nn
+from typing import Optional
+from contrastive_encoders.Qwen2_5_vision_encoder import Qwen2_5_VisionTransformerPretrainedModel
 
-from transformers.modeling_outputs import (
-    BaseModelOutput,
-    BaseModelOutputWithPoolingAndCrossAttentions
-)
 
-from transformers import Qwen2Tokenizer, Qwen2VLProcessor
-import av
+from transformers import (Qwen2Tokenizer, 
+                          Qwen2VLProcessor, 
+                          Qwen2_5_VLPreTrainedModel)
 import math
-from PIL import Image
 
 def MeanPooler(hidden_states, attention_mask):
     if attention_mask is not None:
@@ -44,7 +42,7 @@ def initialize_text_encoder(cfg):
 
 class VisionEncoder(Qwen2_5_VLPreTrainedModel):
     def __init__(self, config):
-        super().__init__()
+        super().__init__(config)
         
         self.encoder = Qwen2_5_VisionTransformerPretrainedModel(config)
         self.projector = nn.Linear(config.out_hidden_size, config.proj_size)
