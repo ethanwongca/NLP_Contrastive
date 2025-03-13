@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 from lightning.pytorch.core import LightningDataModule
 from torch.utils.data import DataLoader
 import webdataset as wds
-from transformers import AutoTokenizer, AutoImageProcessor
+from transformers import AutoTokenizer, AutoProcessor
 import os 
 
 # Modified Qwen Processor Class
@@ -10,8 +10,8 @@ from utils import vision_utils
 
 
 class DataCollatorWithPadding:
-    def __init__(self, vision_processor: Any, tokenizer: Any, data_dir: str, max_length: int = 128) -> None:
-        self.vision_processor = vision_processor
+    def __init__(self, processor: Any, tokenizer: Any, data_dir: str, max_length: int = 128) -> None:
+        self.processor = processor
         self.tokenizer = tokenizer
         self.data_dir = data_dir
         self.max_length = max_length
@@ -23,7 +23,7 @@ class DataCollatorWithPadding:
         # Vision Inputs 
         video_inputs = vision_utils.process_vision_info(video_paths)
 
-        processed_videos = self.vision_processor(
+        processed_videos = self.processor(
             text=None,  # Only processing videos here.
             videos=video_inputs,
             padding=True,
@@ -53,10 +53,10 @@ class DataModule(LightningDataModule):
         
         # Load processoors seperately 
         self.tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
-        self.vision_processor = AutoImageProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+        self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
         
         self.collator = DataCollatorWithPadding(
-            processor=self.vision_processor,
+            processor=self.processor,
             tokenizer=self.tokenizer,
             data_dir=self.data_dir,
             max_length=self.cfg["max_length"]
@@ -98,13 +98,38 @@ class DataModule(LightningDataModule):
         )
 
 if __name__ == "__main__":
-    # Example setup for the DataModule + Collator
     cfg: Dict[str, Any] = {
-        "batch_size": 4,
-        "num_workers": 4,
+        "batch_size": 2,  # Start small for testing.
+        "num_workers": 0,  # Easier debugging.
         "max_length": 128
     }
 
     data_dir: str = "/path/to/your/tar_folder"
+    
+    # Test vision processor.
+    print("Testing vision processor...")
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+    test_video = [os.path.join(data_dir, "sample.mp4")]
+    vision_output = processor(videos=test_video, return_tensors="pt")
+    print("Vision output shapes:")
+    print(f"Pixel values: {vision_output.get('pixel_values_videos', vision_output.get('pixel_values')).shape}")
+    print(f"Grid specs: {vision_output.get('video_grid_thw')}")
+
+    print("\nTesting tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
+    test_text = ["A sample caption"]
+    text_output = tokenizer(test_text, padding=True, return_tensors="pt")
+    print("Text output keys:", text_output.keys())
+
+    print("\nTesting full collator...")
     data_module = DataModule(data_dir, cfg)
     data_module.setup("fit")
+    
+    sample_batch = next(iter(data_module.train_dataloader()))
+    print("\nFinal batch structure:")
+    print("Video keys:", sample_batch["videos"].keys())
+    # Adjust key names if necessary based on your processor's output.
+    video_tensor = sample_batch["videos"].get("pixel_values", None)
+    if video_tensor is not None:
+        print(f"Video tensor shape: {video_tensor.shape}")
+    print(f"Text input_ids shape: {sample_batch['texts']['input_ids'].shape}")
