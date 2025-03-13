@@ -105,31 +105,3 @@ if __name__ == "__main__":
     }
 
     data_dir: str = "/path/to/your/tar_folder"
-    
-    # Test vision processor.
-    print("Testing vision processor...")
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-    test_video = [os.path.join(data_dir, "sample.mp4")]
-    vision_output = processor(videos=test_video, return_tensors="pt")
-    print("Vision output shapes:")
-    print(f"Pixel values: {vision_output.get('pixel_values_videos', vision_output.get('pixel_values')).shape}")
-    print(f"Grid specs: {vision_output.get('video_grid_thw')}")
-
-    print("\nTesting tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
-    test_text = ["A sample caption"]
-    text_output = tokenizer(test_text, padding=True, return_tensors="pt")
-    print("Text output keys:", text_output.keys())
-
-    print("\nTesting full collator...")
-    data_module = DataModule(data_dir, cfg)
-    data_module.setup("fit")
-    
-    sample_batch = next(iter(data_module.train_dataloader()))
-    print("\nFinal batch structure:")
-    print("Video keys:", sample_batch["videos"].keys())
-    # Adjust key names if necessary based on your processor's output.
-    video_tensor = sample_batch["videos"].get("pixel_values", None)
-    if video_tensor is not None:
-        print(f"Video tensor shape: {video_tensor.shape}")
-    print(f"Text input_ids shape: {sample_batch['texts']['input_ids'].shape}")
