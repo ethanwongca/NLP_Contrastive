@@ -332,53 +332,30 @@ def fetch_video(ele: dict, image_factor: int = IMAGE_FACTOR, return_video_sample
             return images, process_info.pop("fps", 2.0)
         return images
 
-
-def extract_vision_info(conversations: list[dict] | list[list[dict]]) -> list[dict]:
-    vision_infos = []
-    if isinstance(conversations[0], dict):
-        conversations = [conversations]
-    for conversation in conversations:
-        for message in conversation:
-            if isinstance(message["content"], list):
-                for ele in message["content"]:
-                    if (
-                        "image" in ele
-                        or "image_url" in ele
-                        or "video" in ele
-                        or ele["type"] in ("image", "image_url", "video")
-                    ):
-                        vision_infos.append(ele)
-    return vision_infos
-
 # Modified to handle a list of videos rather than needing a conversations value 
 # Note what's being appended in list [{"type": "video", "video": "file:///path/to/video1.mp4", "max_pixels": 360 * 420, "fps": 1.0,}]
 def process_vision_info(
     video_list: list[str],
     return_video_kwargs: bool = False,
 ) -> tuple[list[Image.Image] | None, list[torch.Tensor | list[Image.Image]] | None, Optional[dict]]:
-
+    # Image input is removed
     vision_infos = []
 
     for video in video_list:
     #PATH IS FROM DATA.py so video should already be in the format relative to the soruce 
         vision_infos.append({"type": "video", "video": video, "max_pixels": 500 * 500, "fps": 30,})
-    ## Read images or videos
-    image_inputs = []
+    ## Videos
     video_inputs = []
     video_sample_fps_list = []
     for vision_info in vision_infos:
-        if "image" in vision_info or "image_url" in vision_info:
-            image_inputs.append(fetch_image(vision_info))
-        elif "video" in vision_info:
+        if "video" in vision_info:
             video_input, video_sample_fps = fetch_video(vision_info, return_video_sample_fps=True)
             video_sample_fps_list.append(video_sample_fps)
             video_inputs.append(video_input)
         else:
             raise ValueError("image, image_url or video should in content.")
-    if len(image_inputs) == 0:
-        image_inputs = None
     if len(video_inputs) == 0:
         video_inputs = None
     if return_video_kwargs:
-        return image_inputs, video_inputs, {'fps': video_sample_fps_list}
-    return image_inputs, video_inputs
+        return video_inputs, {'fps': video_sample_fps_list}
+    return video_inputs
