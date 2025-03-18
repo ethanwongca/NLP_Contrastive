@@ -343,7 +343,7 @@ def process_vision_info(
 
     for video in video_list:
     #PATH IS FROM DATA.py so video should already be in the format relative to the soruce 
-        vision_infos.append({"type": "video", "video": video, "max_pixels": 500 * 500, "fps": 30,})
+        vision_infos.append({"type": "video", "video": video, "max_pixels": 224 * 224, "fps": 2,})
     ## Videos
     video_inputs = []
     video_sample_fps_list = []

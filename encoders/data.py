@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 from lightning.pytorch.core import LightningDataModule
 from torch.utils.data import DataLoader
 import webdataset as wds
-from transformers import AutoTokenizer, AutoImageProcessor
+from transformers import AutoImageProcessor
 import os 
 
 # Modified Qwen Processor Class
@@ -10,9 +10,8 @@ from utils import vision_utils
 
 
 class DataCollatorWithPadding:
-    def __init__(self, processor: Any, tokenizer: Any, data_dir: str, stage:str, max_length: int = 128) -> None:
+    def __init__(self, processor: Any, data_dir: str, stage:str, max_length: int = 128) -> None:
         self.processor = processor
-        self.tokenizer = tokenizer
         self.data_dir = data_dir
         self.stage = stage
         self.max_length = max_length
@@ -31,19 +30,12 @@ class DataCollatorWithPadding:
             return_tensors="pt",
         )
 
-        # Process texts with Jina Tokenizer 
+        # Processing via the Jina Embeddings is done in the model 
         texts = [sample["txt"] for sample in batch]
-        tokenized_texts = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors="pt"
-        )
         
         return {
             "videos": processed_videos,
-            "texts": tokenized_texts
+            "texts": texts
         }
 
 class DataModule(LightningDataModule):
@@ -52,13 +44,10 @@ class DataModule(LightningDataModule):
         self.data_dir = data_dir
         self.cfg = cfg
         
-        # Load processoors seperately 
-        self.tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
         self.processor = AutoImageProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
         
         self.collator = DataCollatorWithPadding(
             processor=self.processor,
-            tokenizer=self.tokenizer,
             data_dir=self.data_dir,
             stage=self.cfg["stage"],
             max_length=self.cfg["max_length"]
