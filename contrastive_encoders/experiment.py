@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import lightning as pl
 import transformers
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 
 import contrastive_encoders.encoders as encoders
 import contrastive_encoders.losses as losses
@@ -30,11 +30,15 @@ class VideoTextExp(pl.LightningModule):
         super().__init__()
 
         self.save_hyperparameters()
-        
+
+        #print("text encoder cfg:")
         #print(self.hparams.text_encoder_cfg)
         #print(self.hparams.video_encoder_cfg)
-        self.text_encoder = encoders.initialize_text_encoder(self.hparams.text_encoder_cfg)
+        self.text_encoder = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", 
+                                                      trust_remote_code=True)
+        
         print("text_encoder initiated")
+        
         self.video_encoder = encoders.initialize_vision_encoder(self.hparams.video_encoder_cfg)
         print("video_encoder initiated")
         
@@ -62,7 +66,9 @@ class VideoTextExp(pl.LightningModule):
         ]
         
         # Using 8-bit adam
-        optimizer = bnb.optim.Adam8bit(model_params, lr = self.hparams.initial_lr, weight_decay = self.hparams.weight_decay)
+        optimizer = bnb.optim.Adam8bit(model_params, 
+                                       lr = self.hparams.initial_lr, 
+                                       weight_decay = self.hparams.weight_decay)
 
         max_steps = self.trainer.max_steps 
         
@@ -79,12 +85,20 @@ class VideoTextExp(pl.LightningModule):
         
 
     def forward(self, video_input, text_input):
+        text_features = self.text_encoder.encode(text_input, 
+                                                 task=self.hparams.text_encoder_cfg["task"], 
+                                                 truncate_dim=self.hparams.text_encoder_cfg["out_hidden_size"])
+        text_features = torch.tensor(text_features)
+        
         video_features = self.encode_video(video_input) 
-        text_features = self.text_encoder(text_input)
         return video_features, text_features
 
     def encode_video(self, video_input):
-        video_features = self.video_encoder(**video_input).pooler_output
+        pixel_values = video_input['pixel_values_videos']
+        grid_thw = video_input['video_grid_thw']
+        
+        video_features = self.video_encoder(pixel_values, grid_thw)
+
         return video_features
 
     def encode_text(self, text_input):

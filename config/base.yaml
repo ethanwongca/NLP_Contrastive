@@ -12,10 +12,8 @@ model:
 
     text_encoder_cfg:
       model_name: jinaai/jina-embeddings-v3
-      task: retrieval.query
+      task: text-matching
       out_hidden_size: 1024  # The matryoshka dimension
-      proj_size: 512
-      truncate_dim: 1024
 
     video_encoder_cfg:
       model_name: Qwen/Qwen2.5-VL-3B-Instruct
@@ -36,4 +34,5 @@ model:
       window_size: 112
       _attn_implementation: eager
       proj_size: 512
+      torch_dtype: bfloat16
         
