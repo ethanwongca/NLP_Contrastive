@@ -11,6 +11,7 @@ import time
 import warnings
 from functools import lru_cache
 from io import BytesIO
+import tempfile
 
 import requests
 import torch
@@ -276,13 +277,26 @@ def get_video_reader_backend() -> str:
     return video_reader_backend
 
 
+#Modification 1, fetch videos also handles mp4 bytes 
 def fetch_video(ele: dict, image_factor: int = IMAGE_FACTOR, return_video_sample_fps: bool = False) -> torch.Tensor | list[Image.Image]:
+    temp_video_file = None
+    # Get this instance checked out but basically we make a temp mp4 file for image pre-processing via Qwen's other functons
+    # We make this via the raw bytes 
+    if isinstance(ele["video"], bytes):
+        # Write the raw bytes to a temporary file with an .mp4 suffix.
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        tmp.write(ele["video"])
+        tmp.flush()
+        tmp.close()
+        ele["video"] = tmp.name
+        temp_video_file = tmp.name
+
     if isinstance(ele["video"], str):
         video_reader_backend = get_video_reader_backend()
         try:
             video, sample_fps = VIDEO_READER_BACKENDS[video_reader_backend](ele)
         except Exception as e:
-            logger.warning(f"video_reader_backend {video_reader_backend} error, use torchvision as default, msg: {e}")
+            logger.warning(f"video_reader_backend {video_reader_backend} error, using torchvision as default, msg: {e}")
             video, sample_fps = VIDEO_READER_BACKENDS["torchvision"](ele)
 
         nframes, _, height, width = video.shape
@@ -313,11 +327,15 @@ def fetch_video(ele: dict, image_factor: int = IMAGE_FACTOR, return_video_sample
             interpolation=InterpolationMode.BICUBIC,
             antialias=True,
         ).float()
+
+        if temp_video_file is not None:
+            os.remove(temp_video_file)
+
         if return_video_sample_fps:
             return video, sample_fps
         return video
     else:
-        assert isinstance(ele["video"], (list, tuple))
+        # This branch is for when the video field is a list or tuple (i.e., list of frames).
         process_info = ele.copy()
         process_info.pop("type", None)
         process_info.pop("video", None)
@@ -332,8 +350,9 @@ def fetch_video(ele: dict, image_factor: int = IMAGE_FACTOR, return_video_sample
             return images, process_info.pop("fps", 2.0)
         return images
 
-# Modified to handle a list of videos rather than needing a conversations value 
-# Note what's being appended in list [{"type": "video", "video": "file:///path/to/video1.mp4", "max_pixels": 360 * 420, "fps": 1.0,}]
+
+# Modification 2 to handle a list of mp4 bytes rather than needing a chat template from qwen2.5-vl
+# Note what's being appended in list [{"type": "video", "video": "MP4-Bytes", "max_pixels": 360 * 420, "fps": 1.0,}]
 def process_vision_info(
     video_list: list[str],
     return_video_kwargs: bool = False,
@@ -342,9 +361,9 @@ def process_vision_info(
     vision_infos = []
 
     for video in video_list:
-    #PATH IS FROM DATA.py so video should already be in the format relative to the soruce 
+    # Video is bytes adjusted above function to convert bytes to mp4 for processing. 
         vision_infos.append({"type": "video", "video": video, "max_pixels": 224 * 224, "fps": 2,})
-    ## Videos
+    # Vision info contains MP4 bytes
     video_inputs = []
     video_sample_fps_list = []
     for vision_info in vision_infos:

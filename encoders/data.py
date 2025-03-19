@@ -17,25 +17,25 @@ class DataCollatorWithPadding:
         self.max_length = max_length
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
-        # Processing videos according to Qwen's Processor 
-        # Expected data_dir is How2Sign/train/<some_video>.mp4
-        video_paths = [os.path.join(self.data_dir, self.stage, sample["mp4"]) for sample in batch]
+        # Processing videos via Qwen's Image Processor
+ 
+        # Extra the bytes from the webdataset as mp4 -> bytes 
+        video_data_list = [sample[key] for sample in batch for key in sample if key.endswith(".mp4")]
 
-        # Configures videos into the vision utils formats 
-        video_inputs = vision_utils.process_vision_info(video_paths)
-
+        # Process the raw video data via modified Qwen-VL Utils for the webdataset 
+        video_inputs = vision_utils.process_vision_info(video_data_list)
+        print(video_inputs[0])
         processed_videos = self.processor(
             images=None,  # Only processing videos here.
             videos=video_inputs,
             return_tensors="pt",
         )
 
-        # Processing via the Jina Embeddings is done in the model 
-        texts = [sample["txt"] for sample in batch]
-        
+        texts = [sample["txt"] for sample in batch if "txt" in sample]
+
         return {
             "videos": processed_videos,
-            "texts": texts
+            "texts": texts,
         }
 
 class DataModule(LightningDataModule):
@@ -55,13 +55,13 @@ class DataModule(LightningDataModule):
 
     def setup(self, stage: str = None) -> None:
         if stage in ("fit", None):
-            train_path = os.path.join(self.data_dir, "train",  "*.tar")
+            train_path = os.path.join(self.data_dir, "train",  "{00000..00089}.tar")
             self.train_dataset = wds.WebDataset(train_path).shuffle(1000)
         if stage in ("validate", None):
-            val_path = os.path.join(self.data_dir, "val",  "*.tar")
+            val_path = os.path.join(self.data_dir, "val",  "{00000..00010}.tar")
             self.val_dataset = wds.WebDataset(val_path).shuffle(1000)
         if stage == "predict":
-            test_path = os.path.join(self.data_dir, "test",  "*.tar")
+            test_path = os.path.join(self.data_dir, "test",  "{00000..00021}.tar")
             self.test_dataset = wds.WebDataset(test_path).shuffle(1000)
         
     def train_dataloader(self) -> DataLoader:
@@ -88,12 +88,13 @@ class DataModule(LightningDataModule):
             collate_fn=self.collator
         )
 
-if __name__ == "__main__":
-    cfg: Dict[str, Any] = {
-        "batch_size": 2,  # Start small for testing.
-        "num_workers": 0,  # Easier debugging.
-        "max_length": 128,
-        "stage": "train"
-    }
 
-    data_dir: str = "/path/to/your/tar_folder"
+if __name__ == "__main__":
+    # Example cfg input and data_dir
+
+    # Note data_dir must contain train, test, val, and that contains 0000.tar etc. 
+    data_dir = "/OpenASL_web/"
+    cfg = {"batch_size": 1, 
+           "num_workers": 0, 
+           "stage": "train", 
+           "max_length": 128}
