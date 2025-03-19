@@ -24,7 +24,6 @@ class DataCollatorWithPadding:
 
         # Process the raw video data via modified Qwen-VL Utils for the webdataset 
         video_inputs = vision_utils.process_vision_info(video_data_list)
-        print(video_inputs[0])
         processed_videos = self.processor(
             images=None,  # Only processing videos here.
             videos=video_inputs,
