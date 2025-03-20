@@ -20,7 +20,7 @@ class DataCollatorWithPadding:
         # Processing videos via Qwen's Image Processor
  
         # Extra the bytes from the webdataset as mp4 -> bytes 
-        video_data_list = [sample[key] for sample in batch for key in sample if key.endswith(".mp4")]
+        video_data_list = [sample[key] for sample in batch for key in sample if key.endswith("mp4")]
 
         # Process the raw video data via modified Qwen-VL Utils for the webdataset 
         video_inputs = vision_utils.process_vision_info(video_data_list)
@@ -30,7 +30,7 @@ class DataCollatorWithPadding:
             return_tensors="pt",
         )
 
-        texts = [sample["txt"] for sample in batch if "txt" in sample]
+        texts = [sample[key] for sample in batch for key in sample if key.endswith("txt")]
 
         return {
             "videos": processed_videos,
