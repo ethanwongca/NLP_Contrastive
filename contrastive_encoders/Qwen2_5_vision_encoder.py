@@ -127,7 +127,6 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
             `torch.Tensor`: hidden_states.
         """
         hidden_states = self.patch_embed(hidden_states)
-        print(hidden_states.shape)
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
         cu_window_seqlens = torch.tensor(
@@ -139,11 +138,8 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
 
         seq_len, _ = hidden_states.size()
         hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
-        print(hidden_states.shape)
         hidden_states = hidden_states[window_index, :, :]
-        print(hidden_states.shape)
         hidden_states = hidden_states.reshape(seq_len, -1)
-        print(hidden_states.shape)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
         rotary_pos_emb = rotary_pos_emb[window_index, :, :]
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
@@ -172,15 +168,11 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
             else:
                 hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens_now, position_embeddings=position_embeddings)
         
-        print(hidden_states.shape)
 
         hidden_states = self.merger(hidden_states)
-        print(hidden_states.shape)
 
         reverse_indices = torch.argsort(window_index)
-        print(reverse_indices)
         hidden_states = hidden_states[reverse_indices, :]
-        print(hidden_states.shape)
 
 
         return hidden_states

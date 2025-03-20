@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from numba import jit
 from torch.autograd import Function
 
 
