@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Code structure from https://github.com/brdiep113/chi-livechats
 import os
 import subprocess
 import argparse
@@ -38,7 +38,7 @@ def main():
 
     video_url = "https://www.youtube.com/watch?v=" + args.video_id
 
-    # Prepare cookies arguments if provided.
+    # Prepare Cookie Arguments
     cookies_args = []
     if args.cookies_from_browser:
         cookies_args.extend(["--cookies-from-browser", args.cookies_from_browser])
