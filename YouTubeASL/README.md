@@ -1,13 +1,22 @@
 ## Downloading YouTubeASL
-In the model one of the datasets we train on is **YouTube-ASL: A Large-Scale, Open-Domain American Sign Language-English Parallel Corpus** <br/>
 
-The problem is that the dataset only provides video IDs, so the videos have to be downloaded from YouTube. <br/>
+Our sign language model is trained on the **YouTube-ASL: A Large-Scale, Open-Domain American Sign Language-English Parallel Corpus**. However, the dataset only provides video IDs, so the videos must be downloaded from YouTube.
 
-Our script handles that where the videos and captions can be downloaded via an HPC. <br/>
+Our scripts facilitate the download of both videos and captions using a high-performance computing (HPC) environment.
 
-Here are how our files work in our system: <br/>
+### File Overview
 
-**call_python.sh:** Wrapper class, calls upon the Python script that scrapes the videos. <br/>
-**check_script.py:** Due to YouTube's forced rate limit, we write a script to generate a new video_id.txt of the remaining files to download. <br/>
-**process_video.py:** Runs the yt-dlp command needed to download a video according to its video_id. <br/>
-**run_parallel.sh:** Runs the command in parallel. <br/>
+- **call_python.sh:**  
+  A wrapper that calls the Python script responsible for scraping the videos.
+
+- **check_script.py:**  
+  Generates a new `video_id.txt` file with the remaining video IDs to download, addressing YouTube's enforced rate limit.
+
+- **process_video.py:**  
+  Executes the `yt-dlp` command to download a video based on its video ID.
+
+- **run_parallel.sh:**  
+  Runs the download commands in parallel to speed up the process.
+
+- **crop_videos.py:**  
+  Crops the downloaded MP4 files and creates a text file containing the corresponding timestamps from the downloaded SRT captions.
