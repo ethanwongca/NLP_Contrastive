@@ -1,8 +1,13 @@
-#!/usr/bin/env python3
 import os
 import argparse
 
 def cleanup_video_ids(video_ids_file, outdir, output_file):
+    """
+    Takes in the ID text from the YouTubeASL Paper, a directory that stores the currently downloaded videos (outdir), 
+    and a name for the output file.
+
+    Returns a txt with all the remaining YouTube videos to download. 
+    """
     with open(video_ids_file, "r") as fin, open(output_file, "w") as fout:
         for line in fin:
             video_id = line.strip()
