@@ -35,4 +35,6 @@ model:
       _attn_implementation: eager
       proj_size: 512
       torch_dtype: bfloat16
+      seq_len: 1024
+      
         
