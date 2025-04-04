@@ -110,5 +110,3 @@ class DataModule(LightningDataModule):
             num_workers=self.cfg["num_workers"],
             collate_fn=self.collator
         )
-
-
