@@ -111,12 +111,4 @@ class DataModule(LightningDataModule):
             collate_fn=self.collator
         )
 
-if __name__ == "__main__":
-    # Example cfg input and data_dir
 
-    # Note data_dir must contain train, test, val, and that contains 0000.tar etc. 
-    data_dir = "/OpenASL_web/"
-    cfg = {"batch_size": 1, 
-           "num_workers": 0, 
-           "stage": "train", 
-           "max_length": 128}
