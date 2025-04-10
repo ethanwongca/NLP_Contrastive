@@ -1,38 +1,88 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional
 
-from torch.autograd import Function
+class SigLipLoss(nn.Module):
+    """ Sigmoid Loss for Language Image Pre-Training (SigLIP) - https://arxiv.org/abs/2303.15343
 
+    @article{zhai2023sigmoid,
+      title={Sigmoid loss for language image pre-training},
+      author={Zhai, Xiaohua and Mustafa, Basil and Kolesnikov, Alexander and Beyer, Lucas},
+      journal={arXiv preprint arXiv:2303.15343},
+      year={2023}
+    }
+    """
+    def __init__(
+            self,
+            cache_labels: bool = False,
+            rank: int = 0,
+            world_size: int = 1,
+            dist_impl: Optional[str] = None,
+    ):
+        super().__init__()
+        self.cache_labels = cache_labels
+        self.rank = rank
+        self.world_size = world_size
+        self.dist_impl = dist_impl or 'gather'  # default to bidir exchange for now, this will likely change
+        assert self.dist_impl in ('reduce', 'gather')
 
-def ContrastiveSigmoid(v_emb,t_emb,t_prime,b,only_negatives=False):
-    # v_emb : video model embedding [n, dim]
-    # t_emb : text model embedding [n, dim]
-    # t_prime, b : learnable temperature and bias
-    # n : mini-batch size
-    n = v_emb.size(0)
-    n = torch.tensor(n).to(b.device)
-    
-    logSigmoid = nn.LogSigmoid()
-    t = torch.exp(t_prime)
-    z_v = F.normalize(v_emb,dim=-1)
-    z_t = F.normalize(t_emb,dim=-1)
-    logits = torch.matmul(z_v, z_t.T) * t + b
-    
-    if only_negatives:
-        labels = torch.zeros(n,n) - torch.ones(n) # all -1 
-        labels = labels.to(b.device)
-    else:
-        labels = 2 * torch.eye(n) - torch.ones(n) # -1 with diagonal 1
-        labels = labels.to(b.device)
+        # cache state FIXME cache not currently used, worthwhile?
+        self.prev_num_logits = 0
+        self.labels = {}
 
-    loss = -torch.sum(logSigmoid(labels * logits)) / n
-    return loss
+    def get_ground_truth(self, device, dtype, num_logits, negative_only=False) -> torch.Tensor:
+        labels = -torch.ones((num_logits, num_logits), device=device, dtype=dtype)
+        if not negative_only:
+            labels = 2 * torch.eye(num_logits, device=device, dtype=dtype) + labels
+        return labels
 
-        
-    
+    def get_logits(self, image_features, text_features, logit_scale, logit_bias=None):
+        logits = logit_scale * image_features @ text_features.T
+        if logit_bias is not None:
+            logits += logit_bias
+        return logits
 
-if __name__ == "__main__":
-    
-    pass
+    def _loss(self, image_features, text_features, logit_scale, logit_bias=None, negative_only=False):
+        logits = self.get_logits(image_features, text_features, logit_scale, logit_bias)
+        labels = self.get_ground_truth(
+            image_features.device,
+            image_features.dtype,
+            image_features.shape[0],
+            negative_only=negative_only,
+        )
+        loss = -F.logsigmoid(labels * logits).sum() / image_features.shape[0]
+        return loss
+
+    def forward(self, image_features, text_features, logit_scale, logit_bias, output_dict=False):
+        loss = self._loss(image_features, text_features, logit_scale, logit_bias)
+
+        if self.world_size > 1:
+            if self.dist_impl == "reduce":
+                for i in range(self.world_size):
+                    text_from_other = torch.distributed.nn.all_reduce(
+                        text_features * (self.rank == i),
+                        torch.distributed.ReduceOp.SUM,
+                    )
+                    loss += float(i != self.rank) * self._loss(
+                        image_features,
+                        text_from_other,
+                        logit_scale,
+                        logit_bias,
+                        negative_only=True,
+                    )
+            elif self.dist_impl == "gather":
+                all_text = torch.distributed.nn.all_gather(text_features)
+                for i in range(self.world_size):
+                    loss += float(i != self.rank) * self._loss(
+                        image_features,
+                        all_text[i],
+                        logit_scale,
+                        logit_bias,
+                        negative_only=True,
+                    )
+            else:
+                assert False
+
+        return {"contrastive_loss": loss} if output_dict else loss
+

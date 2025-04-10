@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import lightning as pl
 import transformers
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AutoProcessor
 
 import contrastive_encoders.encoders as encoders
 import contrastive_encoders.losses as losses
@@ -31,22 +31,14 @@ class VideoTextExp(pl.LightningModule):
 
         self.save_hyperparameters()
 
-        #print("text encoder cfg:")
-        #print(self.hparams.text_encoder_cfg)
-        #print(self.hparams.video_encoder_cfg)
         self.text_encoder = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", 
                                                       trust_remote_code=True)
-        
         print("text_encoder initiated")
-        
+
         self.video_encoder = encoders.initialize_vision_encoder(self.hparams.video_encoder_cfg)
         print("video_encoder initiated")
         
-        self.loss = losses.ContrastiveSigmoid
-        
-        # t and b for the loss function, should be set in the yaml file?
-        self.t_prime = torch.tensor(math.log(10))
-        self.b = torch.tensor(-10.0)
+        self.loss = losses.SigLipLoss
         
         self.hard_negatives = hard_negatives
         self.text = text 
@@ -57,7 +49,6 @@ class VideoTextExp(pl.LightningModule):
         if processor is not None:
             self.processor = AutoProcessor.from_pretrained(processor)
             
-        #self.zeroshot = zeroshot 
 
     def configure_optimizers(self):
         model_params = [
@@ -94,10 +85,11 @@ class VideoTextExp(pl.LightningModule):
         return video_features, text_features
 
     def encode_video(self, video_input):
+        input_ids = video_input['input_ids']
         pixel_values = video_input['pixel_values_videos']
         grid_thw = video_input['video_grid_thw']
         
-        video_features = self.video_encoder(pixel_values, grid_thw)
+        video_features = self.video_encoder(input_ids, pixel_values, grid_thw)
 
         return video_features
 
@@ -110,10 +102,7 @@ class VideoTextExp(pl.LightningModule):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
-                         text_features, 
-                         self.t_prime,
-                         self.b
-                        )
+                         text_features)
     
         self.log("loss", loss, prog_bar=True)
         
@@ -123,18 +112,15 @@ class VideoTextExp(pl.LightningModule):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
-                         text_features, 
-                         self.t_prime,
-                         self.b
+                         text_features
                         )
         
         self.validation_step_outputs.append(loss)
 
 
-    def validation_epoch_end(self, outputs):
-        
+    def on_validation_epoch_end(self):
         if self.global_rank == 0:
             avg_loss = torch.stack([x["val_loss"] for x in self.validation_step_outputs]).mean()
-            self.log("val_loss", avg_loss, sync_dist = True)
-
-    
+            self.log("val_loss", avg_loss, sync_dist=True)
+            # Important: Clear the list for the next epoch
+            self.validation_step_outputs.clear()
