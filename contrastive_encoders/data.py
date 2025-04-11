@@ -37,7 +37,7 @@ class DataCollatorWithPadding:
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         '''
-        Cusotm collator for batching
+        Custom collator for batching
         Input:
             batch: A list of samples
         
