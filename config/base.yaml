@@ -36,5 +36,9 @@ model:
       proj_size: 512
       torch_dtype: bfloat16
       seq_len: 1024
+    
+    loss_cfg:
+      logit_scale: 1.0
+      logit_bias: 0.0
       
         
