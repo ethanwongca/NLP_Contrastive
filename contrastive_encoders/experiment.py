@@ -52,8 +52,7 @@ class VideoTextExp(pl.LightningModule):
 
     def configure_optimizers(self):
         model_params = [
-            {"params": self.video_encoder.parameters()},
-            {"params": self.text_encoder.parameters()}
+            {"params": self.video_encoder.parameters()}
         ]
         
         # Using 8-bit adam
@@ -102,7 +101,10 @@ class VideoTextExp(pl.LightningModule):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
-                         text_features)
+                         text_features,
+                         logit_scale = self.hparams.loss_cfg["logit_scale"],
+                         logit_bias = self.hparams.loss_cfg["logit_bias"]
+                         )
     
         self.log("loss", loss, prog_bar=True)
         
