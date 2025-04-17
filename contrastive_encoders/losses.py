@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
+import torch.distributed as dist
 
 class SigLipLoss(nn.Module):
     """ Sigmoid Loss for Language Image Pre-Training (SigLIP) - https://arxiv.org/abs/2303.15343
@@ -16,13 +17,16 @@ class SigLipLoss(nn.Module):
     def __init__(
             self,
             cache_labels: bool = False,
-            rank: int = 0,
             world_size: int = 1,
             dist_impl: Optional[str] = None,
     ):
         super().__init__()
         self.cache_labels = cache_labels
-        self.rank = rank
+        
+        if dist.is_available() and dist.is_initialized():
+            self.rank = dist.get_rank()
+        else:
+            self.rank = 0
         self.world_size = world_size
         self.dist_impl = dist_impl or 'gather'  # default to bidir exchange for now, this will likely change
         assert self.dist_impl in ('reduce', 'gather')

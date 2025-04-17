@@ -13,8 +13,6 @@ def MeanPooler(hidden_states, attention_mask = None):
     return pooled_output
 
 
-
-
 class VisionEncoder(Qwen2_5_VLPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -28,7 +26,7 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
 
     def forward(self, input_ids, pixel_values, grid_thw):
         batch_size = input_ids.shape[0]
-        seq_len = self.encoder.config.seq_len
+        #seq_len = self.encoder.config.seq_len
         out_hidden_size = self.encoder.config.out_hidden_size
         
         video_embeds = self.encoder(hidden_states=pixel_values, grid_thw=grid_thw) # (num_tokens, out_hidden_size)
@@ -40,7 +38,7 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
                 f"Video features and video tokens do not match: tokens: {n_video_tokens}, features {n_video_features}"
             )
             
-        pseudo_input_embdeds = torch.zeros(batch_size, seq_len, out_hidden_size)
+        pseudo_input_embdeds = torch.zeros(batch_size, input_ids.shape[1], out_hidden_size)
         video_mask = (
             (input_ids == self.encoder.config.video_token_id)
             .unsqueeze(-1)
