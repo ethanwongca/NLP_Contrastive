@@ -1,3 +1,8 @@
+data_cfg:
+  "stage": "fit"
+  "batch_size": 3
+  "max_length": 128
+  "num_workers": 0 
 model:
   class_path: encoders.experiment.VideoTextExp
   init_args:
@@ -5,11 +10,7 @@ model:
     weight_decay: 0.001
     num_warmup_steps: 500
     optimizer: Adam8bit
-    hard_negatives: true
-    #tokenizer: Qwen2VLProcessor (I don't quite understand here, don't the text encoder and video encoder have their own tokenizers? Why do we need to initialize one for the whole class?)
-    #processor: Qwen2VLProcessor (same question as the tokenizer)
-    #zeroshot: false (we don't need this since we don't have a zeroshot eval function?)
-
+  
     text_encoder_cfg:
       model_name: jinaai/jina-embeddings-v3
       task: text-matching
@@ -35,10 +36,12 @@ model:
       _attn_implementation: eager
       proj_size: 512
       torch_dtype: bfloat16
-      seq_len: 1024
-    
+      seq_len: 341
+      video_token_id: 151656
+
     loss_cfg:
-      logit_scale: 1.0
-      logit_bias: 0.0
+      # rank: 0
+      world_size: 1
+      loss_dist_impl: gather
       
         

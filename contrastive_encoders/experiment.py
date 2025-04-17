@@ -17,6 +17,7 @@ class VideoTextExp(pl.LightningModule):
         self, 
         video_encoder_cfg,
         text_encoder_cfg,
+        loss_cfg,
         #optimizer,
         sample_rate: int = 16000,
         initial_lr: float = 1e-4,
@@ -33,12 +34,14 @@ class VideoTextExp(pl.LightningModule):
 
         self.text_encoder = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", 
                                                       trust_remote_code=True)
-        print("text_encoder initiated")
+        print("text_encoder initialized")
 
         self.video_encoder = encoders.initialize_vision_encoder(self.hparams.video_encoder_cfg)
-        print("video_encoder initiated")
-        
-        self.loss = losses.SigLipLoss
+        print("video_encoder initialized")
+
+        print(self.hparams)
+        self.loss = losses.SigLipLoss(self.hparams.loss_cfg)
+        print("loss function initialized")
         
         self.hard_negatives = hard_negatives
         self.text = text 
@@ -52,7 +55,8 @@ class VideoTextExp(pl.LightningModule):
 
     def configure_optimizers(self):
         model_params = [
-            {"params": self.video_encoder.parameters()}
+            {"params": self.video_encoder.parameters()},
+            {"params": self.text_encoder.parameters()}
         ]
         
         # Using 8-bit adam
@@ -75,12 +79,19 @@ class VideoTextExp(pl.LightningModule):
         
 
     def forward(self, video_input, text_input):
+        if isinstance(text_input[0], bytes):
+            text_input = [t.decode("utf-8") for t in text_input]
+        
+        print("encoding text feature")
         text_features = self.text_encoder.encode(text_input, 
                                                  task=self.hparams.text_encoder_cfg["task"], 
                                                  truncate_dim=self.hparams.text_encoder_cfg["out_hidden_size"])
         text_features = torch.tensor(text_features)
+        print(f"text feature dim: {text_features.shape}")
         
+        print("encoding video_features")
         video_features = self.encode_video(video_input) 
+        print(f"video feature dim: {video_features.shape}")
         return video_features, text_features
 
     def encode_video(self, video_input):
@@ -96,21 +107,21 @@ class VideoTextExp(pl.LightningModule):
         text_features = self.text_encoder(**text_input)
         return text_features
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         
-        video_input, text_input = batch
+        video_input = batch["videos"]
+        text_input = batch["texts"]
         video_features, text_features = self.forward(video_input, text_input)
-        loss = self.loss(video_features, 
-                         text_features,
-                         logit_scale = self.hparams.loss_cfg["logit_scale"],
-                         logit_bias = self.hparams.loss_cfg["logit_bias"]
-                         )
+        loss = self.loss(image_features = video_features, 
+                        text_features = text_features,
+                        logit_scale = math.log(10),
+                        logit_bias = -10)
     
         self.log("loss", loss, prog_bar=True)
         
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
