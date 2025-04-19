@@ -121,7 +121,7 @@ class DataModule(LightningDataModule):
     def setup(self, stage: str = None) -> None:
         """Prepare the dataset pipelines for training, validation, or predict"""
         if stage in ("fit", None):
-            train_path = os.path.join(self.data_dir, "train", "{00000..00031}.tar")
+            train_path = os.path.join(self.data_dir, "train", "{00000..00031}.tar") # Need to be set in config
             self.train_dataset = wds.DataPipeline(
                 wds.ResampledShards(train_path),  # Sample shards for training.
                 wds.shuffle(1000),  # Shuffle shards; num > number in batch
@@ -133,7 +133,7 @@ class DataModule(LightningDataModule):
                 ),  # Batch samples into list, note data originally in dict
             )
         if stage in ("validate", None):
-            val_path = os.path.join(self.data_dir, "val", "{00000..00010}.tar")
+            val_path = os.path.join(self.data_dir, "val", "{00000..00010}.tar") # Need to be set in config
             self.val_dataset = wds.DataPipeline(
                 wds.ResampledShards(val_path),
                 wds.shuffle(1000),
@@ -145,7 +145,7 @@ class DataModule(LightningDataModule):
                 ),
             )
         if stage == "predict":
-            test_path = os.path.join(self.data_dir, "test", "{00000..00021}.tar")
+            test_path = os.path.join(self.data_dir, "test", "{00000..00021}.tar") # Need to be set in config
             self.test_dataset = wds.DataPipeline(
                 wds.ResampledShards(test_path),
                 wds.shuffle(1000),
