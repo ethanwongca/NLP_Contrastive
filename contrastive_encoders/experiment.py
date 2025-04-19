@@ -8,20 +8,25 @@ from transformers import AutoTokenizer, AutoModel, AutoProcessor
 
 import contrastive_encoders.encoders as encoders
 import contrastive_encoders.losses as losses
-from typing import Optional, Dict
+
 import bitsandbytes as bnb
 
 
 class VideoTextExp(pl.LightningModule):
     def __init__(
-        self, 
-        video_encoder_cfg: Optional[Dict] = None,
-        text_encoder_cfg: Optional[Dict] = None,
-        loss_cfg: Optional[Dict] = None,
-        tokenizer: Optional[str] = None,
-        processor: Optional[str] = None,
-        optimizer: Optional[str] = None,
-    ):
+         self, 
+         video_encoder_cfg,
+         text_encoder_cfg,
+         loss_cfg,
+         #optimizer,
+         sample_rate: int = 16000,
+         initial_lr: float = 1e-4,
+         weight_decay: float = 1e-4,
+         num_warmup_steps: int = 0,
+         tokenizer = None,
+         processor = None,
+         text = False
+     ):
         super().__init__()
 
         self.save_hyperparameters()
@@ -50,17 +55,11 @@ class VideoTextExp(pl.LightningModule):
             {"params": self.video_encoder.parameters()},
         ]
         
-        optimizer_cfg = self.hparams.optimizer_cfg 
         
-        if self.hparams.optimizer == "Adam8bit":
-            # Using 8-bit adam
-            optimizer = bnb.optim.Adam8bit(model_params, 
-                                           **optimizer_cfg)
-        else:
-            optimizer = torch.optim.SGD(model_params, 
-                                        **optimizer_cfg)
-            
-
+        optimizer = bnb.optim.Adam8bit(model_params, 
+                                        lr = self.hparams.initial_lr, 
+                                        weight_decay = self.hparams.weight_decay)
+        
         max_steps = self.trainer.max_steps 
         
         scheduler = transformers.get_cosine_schedule_with_warmup(
@@ -118,7 +117,8 @@ class VideoTextExp(pl.LightningModule):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
         loss = self.loss(video_features, 
-                         text_features)
+                         text_features
+                        )
         
         self.validation_step_outputs.append(loss)
 

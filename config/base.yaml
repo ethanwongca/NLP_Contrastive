@@ -6,12 +6,10 @@ data_cfg:
 model:
   class_path: encoders.experiment.VideoTextExp
   init_args:
-    optimizer: Adam8bit
-    optimizer_cfg: 
-      initial_lr: 0.0001
-      weight_decay: 0.001
-      num_warmup_steps: 500
-  
+    initial_lr: 0.0001
+    weight_decay: 0.001
+    num_warmup_steps: 500
+
     text_encoder_cfg:
       model_name: jinaai/jina-embeddings-v3
       task: text-matching
