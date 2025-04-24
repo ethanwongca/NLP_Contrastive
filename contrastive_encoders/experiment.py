@@ -5,12 +5,11 @@ import torch
 import lightning as pl
 import transformers
 from transformers import AutoTokenizer, AutoModel, AutoProcessor
-
+from sentence_transformers.evaluation import InformationRetrievalEvaluator
 import contrastive_encoders.encoders as encoders
 import contrastive_encoders.losses as losses
 
 import bitsandbytes as bnb
-
 
 class VideoTextExp(pl.LightningModule):
     def __init__(
@@ -113,19 +112,51 @@ class VideoTextExp(pl.LightningModule):
         
         return loss
 
-    def validation_step(self, batch):
+    def validation_step(self, batch, batch_idx, **kwargs):
         video_input, text_input = batch
         video_features, text_features = self.forward(video_input, text_input)
-        loss = self.loss(video_features, 
-                         text_features
-                        )
         
-        self.validation_step_outputs.append(loss)
+        self.video_embeddings.append(video_features.cpu())
+        self.text_embeddings.append(text_features.cpu())
+    
+        loss = self.loss(image_features = video_features, 
+                        text_features = text_features,
+                        logit_scale = math.log(10),
+                        logit_bias = -10)
+        
+        self.validation_step_outputs.append({"val_loss": loss})
+        
+        self.video_ids.extend([f"vid_{batch_idx}_{j}" for j in range(len(text_input))])
+        self.text_ids.extend(text_input)
+
 
 
     def on_validation_epoch_end(self):
         if self.global_rank == 0:
             avg_loss = torch.stack([x["val_loss"] for x in self.validation_step_outputs]).mean()
             self.log("val_loss", avg_loss, sync_dist=True)
-            # Important: Clear the list for the next epoch
             self.validation_step_outputs.clear()
+            
+            video_embeds = torch.cat(self.video_embeddings, dim=0).numpy()
+            text_embeds = torch.cat(self.text_embeddings, dim=0).numpy()
+        
+            relevant_docs = {
+                self.video_ids[i]: {self.text_ids[i]} for i in range(len(self.text_ids))
+            }
+
+            evaluator = InformationRetrievalEvaluator(
+                queries=self.video_ids,
+                docs=self.text_ids,
+                relevant_docs=relevant_docs
+            )
+            
+            evaluator(video_embeds, text_embeds, output_path="eval_results")
+
+            accuracy =  evaluator(video_embeds, text_embeds)
+            
+            for metric, score in accuracy.items():
+                self.log(f"eval/{metric}", score, prog_bar=True, on_epoch=True)
+               
+            self.log("InformationRetrievalEvaluation",accuracy,sync_dist=True)
+        
+        
