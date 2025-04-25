@@ -19,4 +19,7 @@ Our scripts facilitate the download of both videos and captions using a high-per
   Runs the download commands in parallel to speed up the process.
 
 - **crop_videos.py:**  
-  Crops the downloaded MP4 files and creates a text file containing the corresponding timestamps from the downloaded SRT captions.
+  Segments the downloaded MP4 files and creates a text file containing the corresponding timestamps from the downloaded SRT captions.
+
+- **srt_script.py:**
+  A parallelized version of crop_videos.py to run on 10 jobs on 10 CPUs 
