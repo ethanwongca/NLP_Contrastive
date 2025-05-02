@@ -356,13 +356,17 @@ def fetch_video(ele: dict, image_factor: int = IMAGE_FACTOR, return_video_sample
 def process_vision_info(
     video_list: list[str],
     return_video_kwargs: bool = False,
+    fps: int = 2
 ) -> tuple[list[Image.Image] | None, list[torch.Tensor | list[Image.Image]] | None, Optional[dict]]:
+    
+    print("Loaded vision_utils from:", __file__)
+
     # Image input is removed
     vision_infos = []
 
     for video in video_list:
     # Video is bytes adjusted above function to convert bytes to mp4 for processing. 
-        vision_infos.append({"type": "video", "video": video, "max_pixels": 224 * 224, "fps": 2,})
+        vision_infos.append({"type": "video", "video": video, "max_pixels": 224 * 224, "fps": fps,})
     # Vision info contains MP4 bytes
     video_inputs = []
     video_sample_fps_list = []

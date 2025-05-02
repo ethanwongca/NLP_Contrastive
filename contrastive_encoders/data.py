@@ -22,7 +22,7 @@ class DataCollatorWithPadding:
     This collator extract video bytes, processes them via our Modified Qwen-Utils,
     and adjusts token sequences by adding a right padding.
     '''
-    def __init__(self, processor: Any, data_dir: str, stage:str, max_length: int = 128) -> None:
+    def __init__(self, processor: Any, data_dir: str, stage:str, max_length: int = 128, fps: int = 2) -> None:
         '''
         Inputs:
             processor: The Qwen or any LLM Processor
@@ -34,6 +34,7 @@ class DataCollatorWithPadding:
         self.data_dir = data_dir
         self.stage = stage
         self.max_length = max_length
+        self.fps = fps
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         '''
@@ -48,7 +49,7 @@ class DataCollatorWithPadding:
         # Video bytes in Webdataset are stored in the mp4 key
         video_data_list = [sample[key] for sample in batch for key in sample if key.endswith("mp4")]
         # Process the raw video data via modified Qwen-VL Utils for the webdataset 
-        video_inputs, video_kwargs = vision_utils.process_vision_info(video_data_list, return_video_kwargs=True)
+        video_inputs, video_kwargs = vision_utils.process_vision_info(video_data_list, return_video_kwargs=True, fps = self.fps) # Added a custom hyperparameter fps from the original process_vision_info()
 
         # Prompt needs the EOS Tokens Etc. 
         messages = [{"role": "user", "content": [{"type": "video"}]}]
@@ -97,31 +98,36 @@ class DataModule(LightningDataModule):
     """
     Lightning DataModule for train, val, and predict 
     """
-    def __init__(self, data_dir: str, cfg: Dict[str, Any]) -> None:
+    def __init__(self, cfg: Dict[str, Any]) -> None:
         """
         Inputs:
             data_dir: Directory with the tar files 
             cfg: Configuration needed to set up data
         """
         super().__init__()
-        self.data_dir = data_dir
         self.cfg = cfg
+        self.data_dir = self.cfg["data_dir"]
         
         # Qwen 2.5-VL's Processor
-        self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+        self.processor = AutoProcessor.from_pretrained(
+            self.cfg["processor_model_path"],
+            trust_remote_code = True,
+            local_files_only=True
+        )
         
         # Custom Collator
         self.collator = DataCollatorWithPadding(
             processor=self.processor,
             data_dir=self.data_dir,
             stage=self.cfg["stage"],
-            max_length=self.cfg["max_length"]
+            max_length=self.cfg["max_length"],
+            fps = self.cfg["fps"]     
         )
 
     def setup(self, stage: str = None) -> None:
         """Prepare the dataset pipelines for training, validation, or predict"""
         if stage in ("fit", None):
-            train_path = os.path.join(self.data_dir, "train", "{00000..00031}.tar") # Need to be set in config
+            train_path = os.path.join(self.data_dir, "train", self.cfg["train_shards"]) 
             self.train_dataset = wds.DataPipeline(
                 wds.ResampledShards(train_path),  # Sample shards for training.
                 wds.shuffle(1000),  # Shuffle shards; num > number in batch
@@ -132,8 +138,20 @@ class DataModule(LightningDataModule):
                     collation_fn=lambda x: x
                 ),  # Batch samples into list, note data originally in dict
             )
-        if stage in ("validate", None):
-            val_path = os.path.join(self.data_dir, "val", "{00000..00010}.tar") # Need to be set in config
+            
+            val_path = os.path.join(self.data_dir, "val", self.cfg["val_shards"])
+            self.val_dataset = wds.DataPipeline(
+                wds.ResampledShards(val_path),
+                wds.shuffle(1000),
+                wds.split_by_worker,
+                wds.tarfile_to_samples(),
+                wds.batched(
+                    self.cfg["batch_size"],
+                    collation_fn=lambda x: x
+                ),
+            )
+        elif stage in ("validate", None):
+            val_path = os.path.join(self.data_dir, "val", self.cfg["val_shards"])
             self.val_dataset = wds.DataPipeline(
                 wds.ResampledShards(val_path),
                 wds.shuffle(1000),
@@ -145,7 +163,7 @@ class DataModule(LightningDataModule):
                 ),
             )
         if stage == "predict":
-            test_path = os.path.join(self.data_dir, "test", "{00000..00021}.tar") # Need to be set in config
+            test_path = os.path.join(self.data_dir, "test", self.cfg["test_shards"])
             self.test_dataset = wds.DataPipeline(
                 wds.ResampledShards(test_path),
                 wds.shuffle(1000),

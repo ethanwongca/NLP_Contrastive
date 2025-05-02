@@ -60,12 +60,15 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
         return pooled_output
 
 def initialize_vision_encoder(cfg):
-    config = AutoConfig.from_pretrained('Qwen/Qwen2.5-VL-3B-Instruct')
+    vision_encoder_config = AutoConfig.from_pretrained(
+        cfg.pretrained_model_path,
+        local_files_only=True)
+    
     for key, value in cfg.items():
-        setattr(config.vision_config, key, value)
+        setattr(vision_encoder_config.vision_config, key, value)
     
     
-    model = VisionEncoder(config)
+    model = VisionEncoder(vision_encoder_config)
     return model
 
 if __name__ == "__main__":
