@@ -1,22 +1,26 @@
 data_cfg:
-  "stage": "fit"
-  "batch_size": 3
-  "max_length": 128
-  "num_workers": 0 
-model:
+  stage: "fit"
+  batch_size: 3
+  max_length: 128
+  num_workers: 0 
+  fps: 2
+  train_shards: "{00000..00031}.tar"
+  val_shards: "{00000..00001}.tar"
+  test_shards: "{00000..00002}.tar"
+  data_dir: /scratch/st-jzhu71-1/ewong25/my_jupyter/How2Sign_web
+  processor_model_path: /scratch/st-jzhu71-1/ldm0612/models/Qwen2.5-VL-3B-Instruct
+
+model_cfg:
   class_path: encoders.experiment.VideoTextExp
   init_args:
-    initial_lr: 0.0001
-    weight_decay: 0.001
-    num_warmup_steps: 500
-
     text_encoder_cfg:
-      model_name: jinaai/jina-embeddings-v3
+      pretrained_model_path: /scratch/st-jzhu71-1/ldm0612/models/jina-embeddings-v3
+      xlm_roberta_flash_implementation_path: /scratch/st-jzhu71-1/ldm0612/models/xlm-roberta-flash-implementation
       task: text-matching
       out_hidden_size: 1024  # The matryoshka dimension
 
     video_encoder_cfg:
-      model_name: Qwen/Qwen2.5-VL-3B-Instruct
+      pretrained_model_path: /scratch/st-jzhu71-1/ldm0612/models/Qwen2.5-VL-3B-Instruct
       depth: 32
       fullatt_block_indexes: [7, 15, 23, 31]
       hidden_act: silu
@@ -38,9 +42,16 @@ model:
       seq_len: 341
       video_token_id: 151656
 
+    optimizer_cfg:
+      initial_lr: 0.0001
+      weight_decay: 0.001
+      num_warmup_steps: 0
+
     loss_cfg:
       # rank: 0
       world_size: 1
       loss_dist_impl: gather
-      
-        
+
+    eval_cfg:
+      eval_model_path: /scratch/st-jzhu71-1/ldm0612/models/all-MiniLM-L6-v2
+

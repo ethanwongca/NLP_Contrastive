@@ -6,8 +6,10 @@ import lightning as pl
 import transformers
 from transformers import AutoTokenizer, AutoModel, AutoProcessor
 from sentence_transformers.evaluation import InformationRetrievalEvaluator
+from sentence_transformers import SentenceTransformer
 import contrastive_encoders.encoders as encoders
 import contrastive_encoders.losses as losses
+import sys
 
 import bitsandbytes as bnb
 
@@ -16,22 +18,23 @@ class VideoTextExp(pl.LightningModule):
          self, 
          video_encoder_cfg,
          text_encoder_cfg,
+         optimizer_cfg,
          loss_cfg,
-         #optimizer,
-         sample_rate: int = 16000,
-         initial_lr: float = 1e-4,
-         weight_decay: float = 1e-4,
-         num_warmup_steps: int = 0,
+         eval_cfg,
          tokenizer = None,
          processor = None,
-         text = False
      ):
         super().__init__()
-
+        
         self.save_hyperparameters()
 
-        self.text_encoder = AutoModel.from_pretrained("jinaai/jina-embeddings-v3", 
-                                                      trust_remote_code=True)
+        
+        self.text_encoder = AutoModel.from_pretrained(
+            self.hparams.text_encoder_cfg.pretrained_model_path,
+            trust_remote_code=True,
+            local_files_only=True # Avoid connecting to HF 
+        )
+        
         print("text_encoder initialized")
 
         self.video_encoder = encoders.initialize_vision_encoder(self.hparams.video_encoder_cfg)
@@ -41,7 +44,15 @@ class VideoTextExp(pl.LightningModule):
         self.loss = losses.SigLipLoss(self.hparams.loss_cfg)
         print("loss function initialized")
         
+        self.eval_model = SentenceTransformer(self.hparams.eval_cfg.eval_model_path)
+        print("eval model initialized")
+        
         self.validation_step_outputs = []
+        self.video_embeddings = []
+        self.text_embeddings = []
+        self.video_ids = []
+        self.text_ids = []
+
         
         if tokenizer is not None:
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
@@ -56,14 +67,14 @@ class VideoTextExp(pl.LightningModule):
         
         
         optimizer = bnb.optim.Adam8bit(model_params, 
-                                        lr = self.hparams.initial_lr, 
-                                        weight_decay = self.hparams.weight_decay)
+                                        lr = self.hparams.optimizer_cfg.initial_lr, 
+                                        weight_decay = self.hparams.optimizer_cfg.weight_decay)
         
         max_steps = self.trainer.max_steps 
         
         scheduler = transformers.get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps = self.hparams.num_warmup_steps,
+            num_warmup_steps = self.hparams.optimizer_cfg.num_warmup_steps,
             num_training_steps = max_steps
         )
         
@@ -113,7 +124,9 @@ class VideoTextExp(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx, **kwargs):
-        video_input, text_input = batch
+        video_input = batch["videos"]
+        text_input = batch["texts"]
+
         video_features, text_features = self.forward(video_input, text_input)
         
         self.video_embeddings.append(video_features.cpu())
@@ -144,19 +157,19 @@ class VideoTextExp(pl.LightningModule):
                 self.video_ids[i]: {self.text_ids[i]} for i in range(len(self.text_ids))
             }
 
+            # Converting to dictionary dtype to match InformationRetrievalEvaluator
+            query_dict = {vid_id: vid_id for vid_id in self.video_ids}
+            corpus_dict = {txt_id: txt_id for txt_id in self.text_ids}
+
             evaluator = InformationRetrievalEvaluator(
-                queries=self.video_ids,
-                docs=self.text_ids,
-                relevant_docs=relevant_docs
+                query_dict,
+                corpus_dict,
+                relevant_docs
             )
             
-            evaluator(video_embeds, text_embeds, output_path="eval_results")
-
-            accuracy =  evaluator(video_embeds, text_embeds)
+            accuracy =  evaluator(self.eval_model)
             
             for metric, score in accuracy.items():
                 self.log(f"eval/{metric}", score, prog_bar=True, on_epoch=True)
-               
-            self.log("InformationRetrievalEvaluation",accuracy,sync_dist=True)
-        
+                       
         
