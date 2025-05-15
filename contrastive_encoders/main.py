@@ -7,6 +7,9 @@ from contrastive_encoders.experiment import VideoTextExp
 from lightning.pytorch.loggers import WandbLogger
 import wandb
 from dotenv import load_dotenv
+from torch.profiler import profile, schedule, ProfilerActivity
+import socket
+from datetime import datetime
 
 
 load_dotenv()  
@@ -34,17 +37,22 @@ model = VideoTextExp(
 
 print("Model Set up successfully!")
 
-wandb_logger = WandbLogger(project="VideoTextExp", name="debug-run", log_model=False) # Setting log_model = False for testing rounds
+wandb_logger = WandbLogger(project="VideoTextExp", name="test_full_ddp", log_model=False) # Setting log_model = False for testing rounds
+
 
 trainer = Trainer(
-    max_epochs=3,
-    limit_train_batches= 12,
-    limit_val_batches= 6,
+    max_epochs=1,
+    # limit_train_batches= 12,
+    # limit_val_batches= 6,
+    val_check_interval=20,
     accelerator="gpu",  
-    devices=1,
     precision="bf16-mixed",  
     logger=wandb_logger,
-    enable_checkpointing=False
+    enable_checkpointing=True,
+    log_every_n_steps=1,
+    devices=1, 
+    #strategy="ddp"
+    #CUDA_VISIBLE_DEVICES=1
 )
 
 trainer.fit(model, datamodule=dm)
