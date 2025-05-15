@@ -19,6 +19,7 @@ class VisionEncoder(Qwen2_5_VLPreTrainedModel):
         
         vision_config = config.vision_config
         self.encoder = Qwen2_5_VisionTransformerPretrainedModel(vision_config)
+        # Use pretrained weight first
 
         self.pooler = MeanPooler
     
